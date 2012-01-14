@@ -60,7 +60,7 @@ class Dnsmasq < Formula
         <string>uk.org.thekelleys.dnsmasq</string>
         <key>ProgramArguments</key>
         <array>
-          <string>/usr/local/sbin/dnsmasq</string>
+          <string>#{sbin+"dnsmasq"}</string>
           <string>--keep-in-foreground</string>
         </array>
         <key>KeepAlive</key>
