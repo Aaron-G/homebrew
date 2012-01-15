@@ -55,6 +55,7 @@ class Dnsmasq < Formula
     end
     
     system "cp #{prefix+plist} #{la}"
+    system "launchctl unload -w #{la+plist}"
     system "launchctl load -w #{la+plist}"
 
     LocalWildcardResolver.new.brew do |f|
