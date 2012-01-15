@@ -1,4 +1,15 @@
 require 'formula'
+require 'socket'
+
+class DnsmasqConf < GithubGistFormula
+  url 'https://raw.github.com/gist/1613339/ff9287cab82aa8dd83127a44d86f14bf3366fbe7/dnsmasq.conf'
+  md5 'e35a7ebfd9738067940ff338123766ea'
+end
+
+class LocalWildcardResolver < GithubGistFormula
+  url 'https://raw.github.com/gist/1613339/c1e91ac0ed7260a9c2b97e79b9772e22415e8bbc/local_wildcard'
+  md5 'a9a2093fd25c2d2815c35ad950b39995'
+end
 
 class Dnsmasq < Formula
   url 'http://www.thekelleys.org.uk/dnsmasq/dnsmasq-2.57.tar.gz'
@@ -12,6 +23,9 @@ class Dnsmasq < Formula
   end
 
   depends_on "libidn" if ARGV.include? '--with-idn'
+
+  def la; Pathname.new(File.expand_path("~/Library/LaunchAgents")); end
+  def plist; "uk.org.thekelleys.dnsmasq.plist"; end
 
   def install
     ENV.deparallelize
@@ -32,22 +46,26 @@ class Dnsmasq < Formula
 
     system "make install PREFIX=#{prefix}"
 
-    prefix.install "dnsmasq.conf.example"
-    (prefix + "uk.org.thekelleys.dnsmasq.plist").write startup_plist
-    (prefix + "uk.org.thekelleys.dnsmasq.plist").chmod 0644
+    (prefix+plist).write startup_plist
+    (prefix+plist).chmod 0644
+
+    DnsmasqConf.new.brew do |f|
+      inreplace 'dnsmasq.conf', '#{hostname}', Socket.gethostname
+      etc.install 'dnsmasq.conf'
+    end
+    
+    system "cp #{prefix+plist} #{la}"
+    system "launchctl load -w #{la+plist}"
+
+    LocalWildcardResolver.new.brew do |f|
+      inreplace 'local_wildcard', '#{hostname}', Socket.gethostname
+      system "sudo mkdir -p /etc/resolver && sudo cp local_wildcard /etc/resolver/ && sudo killall mDNSResponder"
+    end
   end
 
   def caveats; <<-EOS.undent
-    To configure dnsmasq, copy the example configuration to #{etc}/dnsmasq.conf
-    and edit to taste.
-
-      cp #{prefix}/dnsmasq.conf.example #{etc}/dnsmasq.conf
-
-    To load dnsmasq automatically on startup, install and load the provided launchd
-    item as follows:
-
-      sudo cp #{prefix}/uk.org.thekelleys.dnsmasq.plist /Library/LaunchDaemons
-      sudo launchctl load -w /Library/LaunchDaemons/uk.org.thekelleys.dnsmasq.plist
+    You can test wildcard domain resolution with:
+      ping -c 1 -W 1 any.subdomain.of.#{Socket.gethostname}
     EOS
   end
 
@@ -68,6 +86,8 @@ class Dnsmasq < Formula
           <key>NetworkState</key>
           <true/>
         </dict>
+        <key>WorkingDirectory</key>
+        <string>#{HOMEBREW_PREFIX}</string>
       </dict>
     </plist>
     EOS
